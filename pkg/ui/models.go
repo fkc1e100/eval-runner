@@ -348,13 +348,45 @@ type ComparisonTaskRow struct {
 	Tokens        *v1alpha1.TaskTokens
 	LatencyStr    string
 	CostStr       string
+
+	// Multi-metric comparison fields
+	BaseLatencyStr  string // e.g. "8.50s / 12.00s"
+	CandLatencyStr  string // e.g. "6.01s / 9.78s"
+	DeltaLatencyStr string // e.g. "-2.49s"
+
+	BaseTokensStr  string // e.g. "3,200"
+	CandTokensStr  string // e.g. "4,399"
+	DeltaTokensStr string // e.g. "+1,199"
+
+	BaseCostStr  string // e.g. "$0.0010"
+	CandCostStr  string // e.g. "$0.0013"
+	DeltaCostStr string // e.g. "+$0.0003"
 }
 
 // ComparisonRows maps a Comparison resource into a slice of ComparisonTaskRow
 // suitable for rendering in both HTML sub-templates and Markdown comments.
 func ComparisonRows(comp *v1alpha1.Comparison) []ComparisonTaskRow {
+	return ComparisonRowsWithRuns(comp, nil, nil)
+}
+
+// ComparisonRowsWithRuns maps a Comparison resource and resolves task latency,
+// tokens, and cost from the candidate and baseline Runs when available.
+func ComparisonRowsWithRuns(comp *v1alpha1.Comparison, baseRun, candRun *v1alpha1.Run) []ComparisonTaskRow {
 	if comp == nil {
 		return nil
+	}
+
+	candTasks := make(map[string]v1alpha1.TaskStatus)
+	if candRun != nil {
+		for _, t := range candRun.Status.Tasks {
+			candTasks[t.ID] = t
+		}
+	}
+	baseTasks := make(map[string]v1alpha1.TaskStatus)
+	if baseRun != nil {
+		for _, t := range baseRun.Status.Tasks {
+			baseTasks[t.ID] = t
+		}
 	}
 
 	rows := make([]ComparisonTaskRow, 0, len(comp.Status.Tasks))
@@ -381,37 +413,116 @@ func ComparisonRows(comp *v1alpha1.Comparison) []ComparisonTaskRow {
 			ciLabel = fmt.Sprintf("[%+.2f, %+.2f]", task.DeltaCI.Lower, task.DeltaCI.Upper)
 		}
 
-		var latStr string
-		if task.Latency != nil {
-			latStr = fmt.Sprintf("%.2fs / %.2fs", task.Latency.P50, task.Latency.P95)
+		// Latency resolution
+		candLat := task.Latency
+		if candLat == nil {
+			if ct, ok := candTasks[task.ID]; ok && ct.Latency != nil {
+				candLat = ct.Latency
+			}
+		}
+		var baseLat *v1alpha1.TaskLatency
+		if bt, ok := baseTasks[task.ID]; ok && bt.Latency != nil {
+			baseLat = bt.Latency
 		}
 
-		var costStr string
-		if task.CostUSD != nil {
-			costStr = fmt.Sprintf("$%.4f", *task.CostUSD)
+		var latStr, baseLatStr, candLatStr, deltaLatStr string
+		if candLat != nil && (candLat.P50 > 0 || candLat.P95 > 0) {
+			candLatStr = fmt.Sprintf("%.2fs / %.2fs", candLat.P50, candLat.P95)
+			latStr = candLatStr
+		}
+		if baseLat != nil && (baseLat.P50 > 0 || baseLat.P95 > 0) {
+			baseLatStr = fmt.Sprintf("%.2fs / %.2fs", baseLat.P50, baseLat.P95)
+		}
+		if candLat != nil && baseLat != nil && candLat.P50 > 0 && baseLat.P50 > 0 {
+			diff := candLat.P50 - baseLat.P50
+			deltaLatStr = fmt.Sprintf("%+.2fs", diff)
+		}
+
+		// Tokens resolution
+		tokens := task.Tokens
+		if tokens == nil {
+			if ct, ok := candTasks[task.ID]; ok && ct.Tokens != nil {
+				tokens = ct.Tokens
+			}
+		}
+		var baseTokens *v1alpha1.TaskTokens
+		if bt, ok := baseTasks[task.ID]; ok && bt.Tokens != nil {
+			baseTokens = bt.Tokens
+		}
+
+		var baseTokStr, candTokStr, deltaTokStr string
+		if tokens != nil {
+			candTokStr = fmt.Sprintf("%d", tokens.Total)
+		}
+		if baseTokens != nil {
+			baseTokStr = fmt.Sprintf("%d", baseTokens.Total)
+		}
+		if tokens != nil && baseTokens != nil {
+			diff := tokens.Total - baseTokens.Total
+			deltaTokStr = fmt.Sprintf("%+d", diff)
+		}
+
+		// Cost resolution
+		costUSD := task.CostUSD
+		if costUSD == nil {
+			if ct, ok := candTasks[task.ID]; ok && ct.CostUSD != nil {
+				costUSD = ct.CostUSD
+			}
+		}
+		var baseCostUSD *float64
+		if bt, ok := baseTasks[task.ID]; ok && bt.CostUSD != nil {
+			baseCostUSD = bt.CostUSD
+		}
+
+		var costStr, baseCostStr, candCostStr, deltaCostStr string
+		if costUSD != nil {
+			candCostStr = fmt.Sprintf("$%.4f", *costUSD)
+			costStr = candCostStr
+		}
+		if baseCostUSD != nil {
+			baseCostStr = fmt.Sprintf("$%.4f", *baseCostUSD)
+		}
+		if costUSD != nil && baseCostUSD != nil {
+			diff := *costUSD - *baseCostUSD
+			if diff > 0 {
+				deltaCostStr = fmt.Sprintf("+$%.4f", diff)
+			} else if diff < 0 {
+				deltaCostStr = fmt.Sprintf("-$%.4f", -diff)
+			} else {
+				deltaCostStr = "$0.0000"
+			}
 		}
 
 		rows = append(rows, ComparisonTaskRow{
-			ID:            task.ID,
-			BaseRate:      baseRate,
-			CandRate:      candRate,
-			Delta:         deltaStr,
-			HasCI:         hasCI,
-			CILeftPx:      leftPx,
-			CIWidthPx:     widthPx,
-			CIDotPx:       dotPx,
-			CILabel:       ciLabel,
-			StatusClass:   labelStatusClass(task.Label),
-			Label:         string(task.Label),
-			Pairs:         task.Pairs,
-			DroppedCand:   task.Dropped.Candidate,
-			DroppedBase:   task.Dropped.Baseline,
-			SamplesRun:    task.SamplesRun,
-			Decision:      string(task.Decision),
-			SuggestedNext: task.SuggestedNext,
-			Tokens:        task.Tokens,
-			LatencyStr:    latStr,
-			CostStr:       costStr,
+			ID:              task.ID,
+			BaseRate:        baseRate,
+			CandRate:        candRate,
+			Delta:           deltaStr,
+			HasCI:           hasCI,
+			CILeftPx:        leftPx,
+			CIWidthPx:       widthPx,
+			CIDotPx:         dotPx,
+			CILabel:         ciLabel,
+			StatusClass:     labelStatusClass(task.Label),
+			Label:           string(task.Label),
+			Pairs:           task.Pairs,
+			DroppedCand:     task.Dropped.Candidate,
+			DroppedBase:     task.Dropped.Baseline,
+			SamplesRun:      task.SamplesRun,
+			Decision:        string(task.Decision),
+			SuggestedNext:   task.SuggestedNext,
+			Tokens:          tokens,
+			LatencyStr:      latStr,
+			CostStr:         costStr,
+			BaseLatencyStr:  baseLatStr,
+			CandLatencyStr:  candLatStr,
+			DeltaLatencyStr: deltaLatStr,
+			BaseTokensStr:   baseTokStr,
+			CandTokensStr:   candTokStr,
+			DeltaTokensStr:  deltaTokStr,
+			BaseCostStr:     baseCostStr,
+			CandCostStr:     candCostStr,
+			DeltaCostStr:    deltaCostStr,
 		})
 	}
 	return rows
@@ -704,6 +815,9 @@ type ComparisonDetailView struct {
 	CostUSD          *float64
 	PossibleSamples  int
 	SamplesSummary   string
+	TotalCostStr     string
+	TotalTokensStr   string
+	LatencySummary   string
 }
 
 // NewComparisonDetailView constructs a ComparisonDetailView from a Comparison and optional Runs.
@@ -712,13 +826,40 @@ func NewComparisonDetailView(comp *v1alpha1.Comparison, baseRun, candRun *v1alph
 		return ComparisonDetailView{}
 	}
 	summary := ComparisonSummary(comp, baseRun, candRun)
-	taskRows := ComparisonRows(comp)
+	taskRows := ComparisonRowsWithRuns(comp, baseRun, candRun)
 
 	hasTokens := false
+	var totalTokens int
+	var totalReasoning int
 	for _, tr := range taskRows {
 		if tr.Tokens != nil {
 			hasTokens = true
-			break
+			totalTokens += tr.Tokens.Total
+			totalReasoning += tr.Tokens.Reasoning
+		}
+	}
+
+	var totalCostUSD float64
+	var hasCost bool
+	if summary.CostUSD != nil {
+		totalCostUSD = *summary.CostUSD
+		hasCost = true
+	} else if candRun != nil && candRun.Status.CostUSD != nil {
+		totalCostUSD = *candRun.Status.CostUSD
+		hasCost = true
+	}
+
+	var totalCostFormatted string
+	if hasCost {
+		totalCostFormatted = fmt.Sprintf("$%.4f", totalCostUSD)
+	}
+
+	var totalTokensFormatted string
+	if hasTokens {
+		if totalReasoning > 0 {
+			totalTokensFormatted = fmt.Sprintf("%d (+%d R)", totalTokens, totalReasoning)
+		} else {
+			totalTokensFormatted = fmt.Sprintf("%d", totalTokens)
 		}
 	}
 
@@ -734,6 +875,8 @@ func NewComparisonDetailView(comp *v1alpha1.Comparison, baseRun, candRun *v1alph
 		Message:          comp.Status.Message,
 		Tasks:            taskRows,
 		HasTokens:        hasTokens,
+		TotalCostStr:     totalCostFormatted,
+		TotalTokensStr:   totalTokensFormatted,
 		Batches:          ComparisonBatches(comp),
 		Actions:          ComparisonActions(comp),
 		Summary:          summary,

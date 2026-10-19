@@ -249,6 +249,23 @@ a.log-path:hover { text-decoration: underline; background: var(--indigo-soft); }
         <div class="msg-alert"><b>Status:</b> Running batch 2 (1 tasks continuing)</div>
         
 
+        
+        <div class="meta-grid" style="margin-top:16px">
+          <div class="meta-tile">
+            <div class="label">Total Spent</div>
+            <div class="value num">—</div>
+          </div>
+          <div class="meta-tile">
+            <div class="label">Candidate Tokens</div>
+            <div class="value num">800 (&#43;100 R)</div>
+          </div>
+          <div class="meta-tile">
+            <div class="label">Samples Paired</div>
+            <div class="value num">32</div>
+          </div>
+        </div>
+        
+
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:16px 0 8px;gap:12px">
           <h2 style="font-size:17px;font-weight:600;margin:0">Task Comparisons</h2>
           <div class="metric-filter-bar" style="margin:0">
@@ -265,6 +282,7 @@ a.log-path:hover { text-decoration: underline; background: var(--indigo-soft); }
 <div style="overflow-x:auto;margin-top:16px">
   <table class="ci">
     <thead>
+      
       <tr>
         <th>eval</th>
         <th>base</th>
@@ -276,13 +294,14 @@ a.log-path:hover { text-decoration: underline; background: var(--indigo-soft); }
         <th>tokens</th>
         
         
-        
       </tr>
+      
     </thead>
     <tbody>
       
       <tr>
         <td class="mono" style="font-weight:600">docs/readme_comprehension</td>
+        
         <td class="num">0.60</td>
         <td class="num">0.90</td>
         <td class="num">&#43;0.30 <span style="font-size:13px;color:var(--muted)">[&#43;0.10, &#43;0.50]</span></td>
@@ -310,6 +329,7 @@ a.log-path:hover { text-decoration: underline; background: var(--indigo-soft); }
       
       <tr>
         <td class="mono" style="font-weight:600">docs/readme_comprehension_blind</td>
+        
         <td class="num">0.20</td>
         <td class="num">0.15</td>
         <td class="num">-0.05 <span style="font-size:13px;color:var(--muted)">[-0.15, &#43;0.00]</span></td>
@@ -337,6 +357,7 @@ a.log-path:hover { text-decoration: underline; background: var(--indigo-soft); }
       
       <tr>
         <td class="mono" style="font-weight:600">docs/readme_summary</td>
+        
         <td class="num">—</td>
         <td class="num">—</td>
         <td class="num">—</td>

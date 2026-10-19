@@ -619,6 +619,7 @@ const ComparisonTableTemplate = `{{ define "comparison_table" }}
 <div style="overflow-x:auto;margin-top:16px">
   <table class="ci">
     <thead>
+      {{ if eq .Metric "rate" }}
       <tr>
         <th>eval</th>
         <th>base</th>
@@ -626,21 +627,57 @@ const ComparisonTableTemplate = `{{ define "comparison_table" }}
         <th colspan="2">Δ (95% CI)</th>
         <th>label</th>
         <th>samples</th>
-        {{ if or (eq .Metric "all") (eq .Metric "tokens") (and (eq .Metric "") .HasTokens) }}
+      </tr>
+      {{ else if eq .Metric "latency" }}
+      <tr>
+        <th>eval</th>
+        <th>base latency (p50/p95)</th>
+        <th>latency (p50/p95)</th>
+        <th>Δ latency (p50)</th>
+        <th>label</th>
+        <th>samples</th>
+      </tr>
+      {{ else if eq .Metric "tokens" }}
+      <tr>
+        <th>eval</th>
+        <th>base tokens</th>
+        <th>tokens</th>
+        <th>Δ tokens</th>
+        <th>reasoning (+R)</th>
+        <th>samples</th>
+      </tr>
+      {{ else if eq .Metric "cost" }}
+      <tr>
+        <th>eval</th>
+        <th>base cost ($ USD)</th>
+        <th>cost</th>
+        <th>Δ cost ($ USD)</th>
+        <th>this PR tokens</th>
+        <th>samples</th>
+      </tr>
+      {{ else }}
+      <tr>
+        <th>eval</th>
+        <th>base</th>
+        <th>this PR</th>
+        <th colspan="2">Δ (95% CI)</th>
+        <th>label</th>
+        <th>samples</th>
+        {{ if or (eq .Metric "all") (and (eq .Metric "") .HasTokens) }}
         <th>tokens</th>
         {{ end }}
-        {{ if or (eq .Metric "all") (eq .Metric "latency") }}
+        {{ if eq .Metric "all" }}
         <th>latency (p50/p95)</th>
-        {{ end }}
-        {{ if or (eq .Metric "all") (eq .Metric "cost") }}
         <th>cost</th>
         {{ end }}
       </tr>
+      {{ end }}
     </thead>
     <tbody>
       {{ range .Tasks }}
       <tr>
         <td class="mono" style="font-weight:600">{{ .ID }}</td>
+        {{ if eq $.Metric "rate" }}
         <td class="num">{{ .BaseRate }}</td>
         <td class="num">{{ .CandRate }}</td>
         <td class="num">{{ .Delta }}{{ if .HasCI }} <span style="font-size:13px;color:var(--muted)">{{ .CILabel }}</span>{{ end }}</td>
@@ -663,14 +700,54 @@ const ComparisonTableTemplate = `{{ define "comparison_table" }}
           <span style="font-size:11px;color:var(--muted);display:block">dropped: {{ .DroppedCand }} cand, {{ .DroppedBase }} base</span>
           {{ end }}
         </td>
-        {{ if or (eq $.Metric "all") (eq $.Metric "tokens") (and (eq $.Metric "") $.HasTokens) }}
-        <td class="num">{{ if .Tokens }}{{ .Tokens.Total }}{{ if gt .Tokens.Reasoning 0 }} (+R {{ .Tokens.Reasoning }}){{ end }}{{ else }}—{{ end }}</td>
+        {{ else if eq $.Metric "latency" }}
+        <td class="num" style="font-size:13px">{{ if .BaseLatencyStr }}{{ .BaseLatencyStr }}{{ else }}—{{ end }}</td>
+        <td class="num" style="font-size:13px">{{ if .CandLatencyStr }}{{ .CandLatencyStr }}{{ else if .LatencyStr }}{{ .LatencyStr }}{{ else }}—{{ end }}</td>
+        <td class="num" style="font-size:13px">{{ if .DeltaLatencyStr }}{{ .DeltaLatencyStr }}{{ else }}—{{ end }}</td>
+        <td><span class="chip {{ .StatusClass }}"><span class="dot"></span>{{ .Label }}</span></td>
+        <td class="num">{{ if gt .SamplesRun 0 }}{{ .SamplesRun }}{{ else if gt .Pairs 0 }}{{ .Pairs }}{{ else }}—{{ end }}</td>
+        {{ else if eq $.Metric "tokens" }}
+        <td class="num">{{ if .BaseTokensStr }}{{ .BaseTokensStr }}{{ else }}—{{ end }}</td>
+        <td class="num">{{ if .CandTokensStr }}{{ .CandTokensStr }}{{ else if .Tokens }}{{ .Tokens.Total }}{{ else }}—{{ end }}</td>
+        <td class="num">{{ if .DeltaTokensStr }}{{ .DeltaTokensStr }}{{ else }}—{{ end }}</td>
+        <td class="num">{{ if and .Tokens (gt .Tokens.Reasoning 0) }}+R {{ .Tokens.Reasoning }}{{ else }}—{{ end }}</td>
+        <td class="num">{{ if gt .SamplesRun 0 }}{{ .SamplesRun }}{{ else if gt .Pairs 0 }}{{ .Pairs }}{{ else }}—{{ end }}</td>
+        {{ else if eq $.Metric "cost" }}
+        <td class="num" style="font-size:13px">{{ if .BaseCostStr }}{{ .BaseCostStr }}{{ else }}—{{ end }}</td>
+        <td class="num" style="font-size:13px">{{ if .CandCostStr }}{{ .CandCostStr }}{{ else if .CostStr }}{{ .CostStr }}{{ else }}—{{ end }}</td>
+        <td class="num" style="font-size:13px">{{ if .DeltaCostStr }}{{ .DeltaCostStr }}{{ else }}—{{ end }}</td>
+        <td class="num">{{ if .CandTokensStr }}{{ .CandTokensStr }}{{ else if .Tokens }}{{ .Tokens.Total }}{{ else }}—{{ end }}</td>
+        <td class="num">{{ if gt .SamplesRun 0 }}{{ .SamplesRun }}{{ else if gt .Pairs 0 }}{{ .Pairs }}{{ else }}—{{ end }}</td>
+        {{ else }}
+        <td class="num">{{ .BaseRate }}</td>
+        <td class="num">{{ .CandRate }}</td>
+        <td class="num">{{ .Delta }}{{ if .HasCI }} <span style="font-size:13px;color:var(--muted)">{{ .CILabel }}</span>{{ end }}</td>
+        <td>
+          {{ if .HasCI }}
+          <div class="cibar" title="Δ: {{ .Delta }} {{ .CILabel }}">
+            <div class="axis"></div>
+            <div class="zero" style="left:170px"></div>
+            <div class="range {{ .StatusClass }}-c" style="left:{{ printf "%.1f" .CILeftPx }}px; width:{{ printf "%.1f" .CIWidthPx }}px"></div>
+            <div class="pt {{ .StatusClass }}-c" style="left:{{ printf "%.1f" .CIDotPx }}px"></div>
+          </div>
+          {{ else }}
+          <span style="color:var(--muted)">—</span>
+          {{ end }}
+        </td>
+        <td><span class="chip {{ .StatusClass }}"><span class="dot"></span>{{ .Label }}</span></td>
+        <td class="num">
+          {{ if gt .SamplesRun 0 }}{{ .SamplesRun }}{{ else if gt .Pairs 0 }}{{ .Pairs }}{{ else }}—{{ end }}
+          {{ if or (gt .DroppedCand 0) (gt .DroppedBase 0) }}
+          <span style="font-size:11px;color:var(--muted);display:block">dropped: {{ .DroppedCand }} cand, {{ .DroppedBase }} base</span>
+          {{ end }}
+        </td>
+        {{ if or (eq $.Metric "all") (and (eq $.Metric "") $.HasTokens) }}
+        <td class="num">{{ if .Tokens }}{{ .Tokens.Total }}{{ if gt .Tokens.Reasoning 0 }} (+R {{ .Tokens.Reasoning }}){{ end }}{{ else if .CandTokensStr }}{{ .CandTokensStr }}{{ else }}—{{ end }}</td>
         {{ end }}
-        {{ if or (eq $.Metric "all") (eq $.Metric "latency") }}
-        <td class="num" style="font-size:13px">{{ if .LatencyStr }}{{ .LatencyStr }}{{ else }}—{{ end }}</td>
+        {{ if eq $.Metric "all" }}
+        <td class="num" style="font-size:13px">{{ if .CandLatencyStr }}{{ .CandLatencyStr }}{{ else if .LatencyStr }}{{ .LatencyStr }}{{ else }}—{{ end }}</td>
+        <td class="num" style="font-size:13px">{{ if .CandCostStr }}{{ .CandCostStr }}{{ else if .CostStr }}{{ .CostStr }}{{ else }}—{{ end }}</td>
         {{ end }}
-        {{ if or (eq $.Metric "all") (eq $.Metric "cost") }}
-        <td class="num" style="font-size:13px">{{ if .CostStr }}{{ .CostStr }}{{ else }}—{{ end }}</td>
         {{ end }}
       </tr>
       {{ else }}
@@ -721,6 +798,23 @@ const comparisonDetailTemplate = `
 
         {{ if .Message }}
         <div class="msg-alert"><b>Status:</b> {{ .Message }}</div>
+        {{ end }}
+
+        {{ if or .TotalCostStr .TotalTokensStr }}
+        <div class="meta-grid" style="margin-top:16px">
+          <div class="meta-tile">
+            <div class="label">Total Spent</div>
+            <div class="value num">{{ if .TotalCostStr }}{{ .TotalCostStr }}{{ else }}—{{ end }}</div>
+          </div>
+          <div class="meta-tile">
+            <div class="label">Candidate Tokens</div>
+            <div class="value num">{{ if .TotalTokensStr }}{{ .TotalTokensStr }}{{ else }}—{{ end }}</div>
+          </div>
+          <div class="meta-tile">
+            <div class="label">Samples Paired</div>
+            <div class="value num">{{ .TotalPairs }}</div>
+          </div>
+        </div>
         {{ end }}
 
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;margin:16px 0 8px;gap:12px">
