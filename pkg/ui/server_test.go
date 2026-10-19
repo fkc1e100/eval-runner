@@ -2395,3 +2395,116 @@ func TestTruncateMessageBytes_UTF8(t *testing.T) {
 		t.Errorf("expected 'hello', got %q", notTruncated)
 	}
 }
+
+func TestServerRunDetail_MetricFilter(t *testing.T) {
+	scheme := newTestScheme(t)
+	baseRun, candRun, comp := sampleFixtures()
+	candRun.Status.Tasks[0].Latency = &v1alpha1.TaskLatency{P50: 6.01, P95: 9.78}
+	candRun.Status.Tasks[0].Tokens = &v1alpha1.TaskTokens{
+		Input:     2868,
+		Output:    1531,
+		Total:     4399,
+		Reasoning: 133,
+		CacheRead: 512,
+	}
+	cost := 0.001349
+	candRun.Status.Tasks[0].CostUSD = &cost
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(baseRun, candRun, comp).Build()
+	server := NewServer(Config{Client: fakeClient})
+
+	tests := []struct {
+		name         string
+		url          string
+		wantChips    []string
+		wantHeaders  []string
+		wantContains []string
+	}{
+		{
+			name:        "all_metrics",
+			url:         "/runs/eval-runner/docs-eval-cand-05ce4d8?metric=all",
+			wantChips:   []string{`href="?metric=all" class="filter-chip active"`},
+			wantHeaders: []string{"<th>latency (p50/p95)</th>", "<th>tokens</th>", "<th>cost</th>"},
+			wantContains: []string{"6.01s / 9.78s", "4399", "$0.0013"},
+		},
+		{
+			name:        "latency_filter",
+			url:         "/runs/eval-runner/docs-eval-cand-05ce4d8?metric=latency",
+			wantChips:   []string{`href="?metric=latency" class="filter-chip active"`},
+			wantHeaders: []string{"<th>latency (p50/p95)</th>"},
+			wantContains: []string{"6.01s / 9.78s"},
+		},
+		{
+			name:        "tokens_filter",
+			url:         "/runs/eval-runner/docs-eval-cand-05ce4d8?metric=tokens",
+			wantChips:   []string{`href="?metric=tokens" class="filter-chip active"`},
+			wantHeaders: []string{"<th>tokens</th>", "<th>input</th>", "<th>output</th>", "<th>reasoning</th>"},
+			wantContains: []string{"4399", "2868", "1531", "133"},
+		},
+		{
+			name:        "cost_filter",
+			url:         "/runs/eval-runner/docs-eval-cand-05ce4d8?metric=cost",
+			wantChips:   []string{`href="?metric=cost" class="filter-chip active"`},
+			wantHeaders: []string{"<th>cost</th>"},
+			wantContains: []string{"$0.0013"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tc.url, nil)
+			w := httptest.NewRecorder()
+			server.ServeHTTP(w, req)
+			if w.Code != http.StatusOK {
+				t.Fatalf("expected 200 OK, got %d", w.Code)
+			}
+			body := w.Body.String()
+			for _, chip := range tc.wantChips {
+				if !strings.Contains(body, chip) {
+					t.Errorf("expected chip %q in body", chip)
+				}
+			}
+			for _, hdr := range tc.wantHeaders {
+				if !strings.Contains(body, hdr) {
+					t.Errorf("expected header %q in body", hdr)
+				}
+			}
+			for _, s := range tc.wantContains {
+				if !strings.Contains(body, s) {
+					t.Errorf("expected %q in body", s)
+				}
+			}
+		})
+	}
+}
+
+func TestServerComparisonDetail_MetricFilter(t *testing.T) {
+	scheme := newTestScheme(t)
+	baseRun, candRun, comp := sampleFixtures()
+	comp.Status.Tasks[0].Latency = &v1alpha1.TaskLatency{P50: 5.5, P95: 8.2}
+	cost := 0.0025
+	comp.Status.Tasks[0].CostUSD = &cost
+	comp.Status.Tasks[0].Tokens = &v1alpha1.TaskTokens{Total: 3500}
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(baseRun, candRun, comp).Build()
+	server := NewServer(Config{Client: fakeClient})
+
+	req := httptest.NewRequest(http.MethodGet, "/comparisons/eval-runner/docs-eval-same-commit?metric=latency", nil)
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `href="?metric=latency" class="filter-chip active"`) {
+		t.Errorf("expected active latency filter chip")
+	}
+	if !strings.Contains(body, "<th>latency (p50/p95)</th>") {
+		t.Errorf("expected latency header in table")
+	}
+	if !strings.Contains(body, "5.50s / 8.20s") {
+		t.Errorf("expected latency values in table")
+	}
+}
+

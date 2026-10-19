@@ -90,6 +90,16 @@ type RunTaskRow struct {
 	SamplesPlanned int
 	ProgressPct    float64
 	ProgressText   string // e.g. "8 of 96 samples"
+	Latency        *v1alpha1.TaskLatency
+	LatencyStr     string // e.g. "6.01s / 9.78s"
+	Tokens         *v1alpha1.TaskTokens
+	TokensStr      string // e.g. "4,399"
+	InputTokens    string
+	OutputTokens   string
+	ReasoningStr   string // e.g. "133"
+	CacheReadStr   string // e.g. "0"
+	CostUSD        *float64
+	CostStr        string // e.g. "$0.0013"
 }
 
 // LogURL returns a browsable web URL for the task's LogPath if it is a gs:// or http(s):// URI.
@@ -124,6 +134,17 @@ func FormatLogURL(uri string) string {
 	return ""
 }
 
+// MetricFilter represents the selected metric dimension to display in the UI.
+type MetricFilter string
+
+const (
+	MetricFilterAll     MetricFilter = "all"
+	MetricFilterRate    MetricFilter = "rate"
+	MetricFilterLatency MetricFilter = "latency"
+	MetricFilterTokens  MetricFilter = "tokens"
+	MetricFilterCost    MetricFilter = "cost"
+)
+
 // RunDetailView is the view model for the /runs/<ns>/<name> detail page.
 type RunDetailView struct {
 	ActiveTab       NavTab
@@ -138,6 +159,10 @@ type RunDetailView struct {
 	Age             string
 	ArtifactsPrefix string
 	Message         string
+	Metric          MetricFilter
+	TotalCost       string
+	LatencySummary  string
+	TokensSummary   string
 
 	// Summary
 	TasksSummary     string
@@ -298,6 +323,7 @@ func FormatCompletionTime(t *metav1.Time) string {
 type ComparisonTableView struct {
 	Tasks     []ComparisonTaskRow
 	HasTokens bool
+	Metric    MetricFilter
 }
 
 // ComparisonTaskRow represents a single task row in the PR-comment table.
@@ -320,6 +346,8 @@ type ComparisonTaskRow struct {
 	Decision      string
 	SuggestedNext int
 	Tokens        *v1alpha1.TaskTokens
+	LatencyStr    string
+	CostStr       string
 }
 
 // ComparisonRows maps a Comparison resource into a slice of ComparisonTaskRow
@@ -353,6 +381,16 @@ func ComparisonRows(comp *v1alpha1.Comparison) []ComparisonTaskRow {
 			ciLabel = fmt.Sprintf("[%+.2f, %+.2f]", task.DeltaCI.Lower, task.DeltaCI.Upper)
 		}
 
+		var latStr string
+		if task.Latency != nil {
+			latStr = fmt.Sprintf("%.2fs / %.2fs", task.Latency.P50, task.Latency.P95)
+		}
+
+		var costStr string
+		if task.CostUSD != nil {
+			costStr = fmt.Sprintf("$%.4f", *task.CostUSD)
+		}
+
 		rows = append(rows, ComparisonTaskRow{
 			ID:            task.ID,
 			BaseRate:      baseRate,
@@ -372,6 +410,8 @@ func ComparisonRows(comp *v1alpha1.Comparison) []ComparisonTaskRow {
 			Decision:      string(task.Decision),
 			SuggestedNext: task.SuggestedNext,
 			Tokens:        task.Tokens,
+			LatencyStr:    latStr,
+			CostStr:       costStr,
 		})
 	}
 	return rows
@@ -639,6 +679,7 @@ type ComparisonDetailView struct {
 	PImprovement string // e.g. "0.98"
 	SummaryPath  string
 	Message      string
+	Metric       MetricFilter
 
 	Tasks     []ComparisonTaskRow
 	HasTokens bool
