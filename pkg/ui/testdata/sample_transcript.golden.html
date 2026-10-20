@@ -259,6 +259,9 @@ table.ci td.delta-cell .delta-strip { flex-direction: column; gap: 1px; margin: 
 .ev.tool .k { color: var(--indigo); }
 .ev.bad { background: var(--bad-soft); border-color: #FECACA; }
 .ev.bad .k { color: var(--bad); }
+.note-cell { max-width: 240px; }
+.ev.note { background: var(--surface); }
+.ev.note .k { width: 120px; color: var(--ink-2); }
 </style>
 </head>
 <body>
@@ -290,6 +293,16 @@ table.ci td.delta-cell .delta-strip { flex-direction: column; gap: 1px; margin: 
       </div>
 
       
+      <div class="eval-notes" style="margin-top:20px">
+        <div class="ev note">
+          <span class="k">pass rule</span>
+          <pre class="b">Resolved via runbook</pre>
+        </div>
+        <div class="ev note">
+          <span class="k">grader reason</span>
+          <pre class="b">failed runbook check</pre>
+        </div>
+      </div>
 
       <div class="transcript" style="margin-top:20px">
         
