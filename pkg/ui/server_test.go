@@ -242,6 +242,14 @@ func TestServerRunsList(t *testing.T) {
 	if !strings.Contains(body, "/runs/eval-runner/docs-eval-base-05ce4d8") {
 		t.Errorf("expected link to run detail")
 	}
+
+	// Trailing slash support
+	reqSlash := httptest.NewRequest(http.MethodGet, "/runs/", nil)
+	wSlash := httptest.NewRecorder()
+	server.ServeHTTP(wSlash, reqSlash)
+	if wSlash.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for /runs/, got %d", wSlash.Code)
+	}
 }
 
 func TestServerRunDetail(t *testing.T) {
@@ -499,6 +507,14 @@ func TestServerComparisonsList(t *testing.T) {
 	}
 	if !strings.Contains(body, "/comparisons/eval-runner/docs-eval-same-commit") {
 		t.Errorf("expected link to comparison detail")
+	}
+
+	// Trailing slash support
+	reqSlash := httptest.NewRequest(http.MethodGet, "/comparisons/", nil)
+	wSlash := httptest.NewRecorder()
+	server.ServeHTTP(wSlash, reqSlash)
+	if wSlash.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for /comparisons/, got %d", wSlash.Code)
 	}
 }
 
@@ -832,6 +848,14 @@ func TestServerPullsList(t *testing.T) {
 	}
 	if !strings.Contains(body, ">2<") {
 		t.Errorf("expected batches 2")
+	}
+
+	// Trailing slash support
+	reqSlash := httptest.NewRequest(http.MethodGet, "/pulls/", nil)
+	wSlash := httptest.NewRecorder()
+	server.ServeHTTP(wSlash, reqSlash)
+	if wSlash.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK for /pulls/, got %d", wSlash.Code)
 	}
 }
 

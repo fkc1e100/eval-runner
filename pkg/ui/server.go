@@ -155,12 +155,15 @@ func (s *Server) routes() {
 	s.mux.HandleFunc("GET /healthz", s.handleHealthz)
 	s.mux.HandleFunc("GET /{$}", s.handleRoot)
 	s.mux.HandleFunc("GET /runs", s.handleRunsList)
+	s.mux.HandleFunc("GET /runs/{$}", s.handleRunsList)
 	s.mux.HandleFunc("GET /runs/{namespace}/{name}", s.handleRunDetail)
 	s.mux.HandleFunc("GET /runs/{namespace}/{name}/tasks/{task}/samples", s.handleTaskSamplesList)
 	s.mux.HandleFunc("GET /runs/{namespace}/{name}/tasks/{task}/samples/{sample}", s.handleSampleTranscript)
 	s.mux.HandleFunc("GET /comparisons", s.handleComparisonsList)
+	s.mux.HandleFunc("GET /comparisons/{$}", s.handleComparisonsList)
 	s.mux.HandleFunc("GET /comparisons/{namespace}/{name}", s.handleComparisonDetail)
 	s.mux.HandleFunc("GET /pulls", s.handlePullsList)
+	s.mux.HandleFunc("GET /pulls/{$}", s.handlePullsList)
 	s.mux.HandleFunc("GET /pulls/{repohash}/{number}", s.handlePullDetail)
 }
 
