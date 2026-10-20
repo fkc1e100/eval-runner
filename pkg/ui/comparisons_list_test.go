@@ -103,7 +103,7 @@ func TestRegressedTasksAndFallback(t *testing.T) {
 				{ID: "prompt-15", BaseRate: floatPtr(1.0), CandidateRate: floatPtr(0.8), Delta: floatPtr(-0.2), Label: v1alpha1.ComparisonTaskLabelRegressed},
 				{ID: "prompt-18", BaseRate: floatPtr(0.6), CandidateRate: floatPtr(0.2), Delta: floatPtr(-0.4), Label: v1alpha1.ComparisonTaskLabelRegressed},
 				{ID: "prompt-02", BaseRate: floatPtr(1.0), CandidateRate: floatPtr(1.0), Delta: floatPtr(0), Label: v1alpha1.ComparisonTaskLabelUnchanged},
-				{ID: "prompt-30", Label: taskLabelSkipped},
+				{ID: "prompt-30", Label: v1alpha1.ComparisonTaskLabelSkipped},
 				{ID: "prompt-31", Label: v1alpha1.ComparisonTaskLabelRegressed}, // no delta: sorts last
 			},
 		},
@@ -163,10 +163,22 @@ func TestComparisonReason(t *testing.T) {
 
 	t.Run("message wins over the derived fallback", func(t *testing.T) {
 		comp := regressed.DeepCopy()
-		comp.Status.Message = "  Publisher\nexplanation  "
+		comp.Status.Message = "  Publisher explanation  "
 		display, full := ComparisonReason(comp)
-		if display != "Publisher explanation" || full != "Publisher\nexplanation" {
+		if display != "Publisher explanation" || full != "Publisher explanation" {
 			t.Errorf("got display=%q full=%q", display, full)
+		}
+	})
+
+	t.Run("multi-line message shows only its headline", func(t *testing.T) {
+		comp := regressed.DeepCopy()
+		comp.Status.Message = "\r\n  Headline sentence.  \r\n\r\nDetail:\r\n- one\r\n"
+		display, full := ComparisonReason(comp)
+		if display != "Headline sentence." {
+			t.Errorf("display = %q, want the headline only", display)
+		}
+		if full != "Headline sentence.  \n\nDetail:\n- one" {
+			t.Errorf("full = %q, want the whole message with normalized line breaks", full)
 		}
 	})
 

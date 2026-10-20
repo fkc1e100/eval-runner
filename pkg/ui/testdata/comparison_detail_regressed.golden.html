@@ -239,6 +239,13 @@ table.ci td.delta-cell .delta-strip { flex-direction: column; gap: 1px; margin: 
 .reason-panel { margin-top: 14px; padding: 10px 14px; background: var(--neutral-soft); border: 1px solid var(--line); border-left: 3px solid var(--neutral); border-radius: 6px; font-size: 14px; color: var(--ink-2); }
 .reason-panel .reason-label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px; }
 .reason-panel .reason-text { white-space: pre-line; line-height: 1.5; }
+
+.reason-panel .reason-headline { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+.reason-panel .reason-block { margin-top: 10px; }
+.reason-panel .reason-block-heading { font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 8px 0 2px; }
+.reason-panel .reason-para { margin: 0; line-height: 1.5; }
+.reason-panel .reason-list { margin: 2px 0 0; padding-left: 20px; line-height: 1.5; }
+.reason-panel a { overflow-wrap: anywhere; }
 </style>
 </head>
 <body>
@@ -275,8 +282,12 @@ table.ci td.delta-cell .delta-strip { flex-direction: column; gap: 1px; margin: 
 </div></div>
 
         
-        <div class="reason-panel"><div class="reason-label">Reason</div><div class="reason-text">Two tasks regressed after the prompt rewrite.
-readme comprehension answers omit the install section in 3 of 5 samples.</div></div>
+        <div class="reason-panel"><div class="reason-label">Reason</div>
+          <div class="reason-headline">Two tasks regressed after the prompt rewrite.</div>
+          <div class="reason-block">
+            <p class="reason-para">readme comprehension answers omit the install section in 3 of 5 samples.</p>
+          </div>
+        </div>
         
         <h2 style="font-size:17px;font-weight:600;margin:20px 0 8px">Regressed tasks <span style="font-size:13px;font-weight:500;color:var(--muted)">2 of 4</span></h2>
         <div style="overflow-x:auto">
@@ -351,6 +362,9 @@ readme comprehension answers omit the install section in 3 of 5 samples.</div></
         <th>tokens</th>
         
         
+        
+        <th>cost</th>
+        
       </tr>
       
     </thead>
@@ -382,6 +396,9 @@ readme comprehension answers omit the install section in 3 of 5 samples.</div></
         
         
         
+        <td class="num" style="font-size:13px">$0.0018</td>
+        
+        
       </tr>
       
       <tr>
@@ -408,6 +425,9 @@ readme comprehension answers omit the install section in 3 of 5 samples.</div></
         
         <td class="num">21000</td>
         
+        
+        
+        <td class="num" style="font-size:13px">$0.0042</td>
         
         
       </tr>
@@ -438,6 +458,9 @@ readme comprehension answers omit the install section in 3 of 5 samples.</div></
         
         
         
+        <td class="num" style="font-size:13px">$0.0052</td>
+        
+        
       </tr>
       
       <tr>
@@ -464,6 +487,9 @@ readme comprehension answers omit the install section in 3 of 5 samples.</div></
         
         <td class="num">41000</td>
         
+        
+        
+        <td class="num" style="font-size:13px">$0.0082</td>
         
         
       </tr>

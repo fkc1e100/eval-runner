@@ -41,11 +41,6 @@ const (
 
 	// regressionSummaryTasks is the number of regressed tasks named in a derived reason.
 	regressionSummaryTasks = 3
-
-	// taskLabelSkipped matches tasks that newer controllers record with the "skipped"
-	// label because changed-file affinity pruned them. Skipped tasks were not evaluated,
-	// so they are left out of the task counts in derived reasons.
-	taskLabelSkipped v1alpha1.ComparisonTaskLabel = "skipped"
 )
 
 // ComparisonKind selects which labeled Comparisons the /comparisons page shows.
@@ -171,7 +166,7 @@ func evaluatedTaskCount(comp *v1alpha1.Comparison) int {
 	}
 	n := 0
 	for _, t := range comp.Status.Tasks {
-		if t.Label != taskLabelSkipped {
+		if t.Label != v1alpha1.ComparisonTaskLabelSkipped {
 			n++
 		}
 	}
@@ -237,19 +232,23 @@ func RegressionFallback(comp *v1alpha1.Comparison) string {
 }
 
 // ComparisonReason returns the reason line for comp. It uses status.message when set and
-// otherwise RegressionFallback. display is collapsed to one line and truncated near
-// reasonMaxRunes runes; full is the untruncated text for a title attribute. Both are empty
-// when there is nothing to show.
+// otherwise RegressionFallback. For a message with line breaks, display is its first line
+// (the headline); otherwise display is the whole message collapsed to one line. display is
+// truncated near reasonMaxRunes runes either way, and full is the untruncated text for a
+// title attribute. Both are empty when there is nothing to show.
 func ComparisonReason(comp *v1alpha1.Comparison) (display, full string) {
 	if comp == nil {
 		return "", ""
 	}
-	full = strings.TrimSpace(comp.Status.Message)
+	full = strings.TrimSpace(normalizeNewlines(comp.Status.Message))
 	if full == "" {
 		full = RegressionFallback(comp)
 	}
 	if full == "" {
 		return "", ""
+	}
+	if strings.Contains(full, "\n") {
+		return TruncateAtWord(ReasonHeadline(full), reasonMaxRunes), full
 	}
 	return TruncateAtWord(full, reasonMaxRunes), full
 }

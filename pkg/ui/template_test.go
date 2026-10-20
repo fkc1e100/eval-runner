@@ -776,6 +776,67 @@ func TestTemplateRenderingComparisonsList_FilteredEmptyState(t *testing.T) {
 	}
 }
 
+func TestTemplateRenderingComparisonDetail_StructuredReasonGolden(t *testing.T) {
+	view := sampleComparisonDetailView()
+	view.Message = structuredReasonMessage
+
+	var buf bytes.Buffer
+	if err := tmplComparisonDetail.Execute(&buf, view); err != nil {
+		t.Fatalf("failed to execute comparison detail template: %v", err)
+	}
+	body := buf.String()
+
+	for _, want := range []string{
+		`<div class="reason-headline">Pass rate fell on 2 of 4 tasks and rose on 1; the largest drop is docs/readme_comprehension, 80% -&gt; 40%.</div>`,
+		`<p class="reason-para">Every task has 5 paired samples, below the 8 pairs needed to label a task, so all tasks are inconclusive.<br>The headline P(improvement) is the lowest per-task value.</p>`,
+		`<div class="reason-block-heading">Largest drops:</div>`,
+		`<li>docs/readme_comprehension 80% -&gt; 40% (3 timeouts)</li>`,
+		`<li>1 incorrect &lt;b&gt;answer&lt;/b&gt; &amp; &#34;quoted&#34; text</li>`,
+		`<p class="reason-para">Code changes: <a href="https://github.com/example/repo/compare/a81d0c4...05ce4d8" target="_blank" rel="noopener noreferrer">https://github.com/example/repo/compare/a81d0c4...05ce4d8</a></p>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("expected %q in the structured reason panel", want)
+		}
+	}
+	if strings.Contains(body, `class="reason-text"`) {
+		t.Errorf("did not expect the plain reason block for a structured message")
+	}
+
+	assertGolden(t, "comparison_detail_reason_structured.golden.html", body)
+}
+
+func TestTemplateRenderingComparisonDetail_SingleParagraphReason(t *testing.T) {
+	render := func(t *testing.T, message string) string {
+		t.Helper()
+		view := sampleComparisonDetailView()
+		view.Message = message
+		var buf bytes.Buffer
+		if err := tmplComparisonDetail.Execute(&buf, view); err != nil {
+			t.Fatalf("failed to execute comparison detail template: %v", err)
+		}
+		return buf.String()
+	}
+
+	t.Run("markup is unchanged", func(t *testing.T) {
+		body := render(t, "Running batch 2 (1 tasks continuing) <i>now</i>")
+		want := "        \n        <div class=\"reason-panel\"><div class=\"reason-label\">Reason</div><div class=\"reason-text\">Running batch 2 (1 tasks continuing) &lt;i&gt;now&lt;/i&gt;</div></div>\n        \n"
+		if !strings.Contains(body, want) {
+			t.Errorf("expected the single-paragraph panel markup to match the unstructured layout, got:\n%s", body)
+		}
+		if strings.Contains(body, `class="reason-headline"`) {
+			t.Errorf("did not expect a headline for a message without line breaks")
+		}
+	})
+
+	t.Run("URL becomes a link", func(t *testing.T) {
+		body := render(t, "Code changes: https://example.com/compare/a...b.")
+		want := `<div class="reason-text">Code changes: <a href="https://example.com/compare/a...b" target="_blank" rel="noopener noreferrer">https://example.com/compare/a...b</a>.</div>`
+		if !strings.Contains(body, want) {
+			t.Errorf("expected a link inside the plain reason block, got:\n%s", body)
+		}
+	})
+}
+
 // regressedComparisonFixture returns a REGRESSED Comparison with a publisher message and
 // the two Runs it references, with per-task tokens and cost on both Runs.
 func regressedComparisonFixture() (*v1alpha1.Comparison, *v1alpha1.Run, *v1alpha1.Run) {
@@ -857,8 +918,8 @@ func TestTemplateRenderingComparisonDetail_RegressedGolden(t *testing.T) {
 	if strings.Contains(body, `class="msg-alert"`) {
 		t.Errorf("expected the status message in a neutral reason panel, not an error alert")
 	}
-	if !strings.Contains(body, `<div class="reason-panel"><div class="reason-label">Reason</div><div class="reason-text">Two tasks regressed after the prompt rewrite.`) {
-		t.Errorf("expected the status message in the reason panel")
+	if !strings.Contains(body, `<div class="reason-headline">Two tasks regressed after the prompt rewrite.</div>`) {
+		t.Errorf("expected the first line of the status message as the reason headline")
 	}
 	idxComprehension := strings.Index(body, `<td class="mono" style="font-weight:600">docs/readme_comprehension</td>`)
 	idxRunbook := strings.Index(body, `<td class="mono" style="font-weight:600">triage/runbook_lookup</td>`)
@@ -1206,6 +1267,29 @@ func TestEscapingHostileFixtures(t *testing.T) {
 		}
 		if !strings.Contains(html, "&lt;script&gt;") {
 			t.Errorf("expected escaped &lt;script&gt; in HTML")
+		}
+	})
+
+	t.Run("ComparisonDetailStructuredReasonEscaping", func(t *testing.T) {
+		view := sampleComparisonDetailView()
+		view.Message = "Headline " + hostileScript + "\n\n" +
+			"Heading " + hostileImg + ":\n" +
+			"- bullet " + hostileIframe + "\n" +
+			"- link https://evil.example/x" + hostileImg + "\n\n" +
+			"javascript:alert('x') " + hostileScript
+		var buf bytes.Buffer
+		if err := tmplComparisonDetail.Execute(&buf, view); err != nil {
+			t.Fatalf("template render error: %v", err)
+		}
+		html := buf.String()
+
+		for _, dangerous := range []string{"<script", "<img", "<iframe", `href="javascript`} {
+			if strings.Contains(html, dangerous) {
+				t.Errorf("unescaped dangerous content in structured reason panel: %q", dangerous)
+			}
+		}
+		if !strings.Contains(html, `<a href="https://evil.example/x" target="_blank" rel="noopener noreferrer">https://evil.example/x</a>&#39;&#34;&gt;&lt;img`) {
+			t.Errorf("expected the link to stop at the quote and the rest to stay escaped text")
 		}
 	})
 

@@ -692,6 +692,20 @@ const comparisonsListTemplate = `
 </html>
 `
 
+// reasonCSS styles the structured Reason panel on the Comparison detail page.
+const reasonCSS = `
+.reason-panel .reason-headline { font-size: 15px; font-weight: 600; color: var(--ink); line-height: 1.4; }
+.reason-panel .reason-block { margin-top: 10px; }
+.reason-panel .reason-block-heading { font-size: 12px; font-weight: 600; color: var(--ink-2); margin: 8px 0 2px; }
+.reason-panel .reason-para { margin: 0; line-height: 1.5; }
+.reason-panel .reason-list { margin: 2px 0 0; padding-left: 20px; line-height: 1.5; }
+.reason-panel a { overflow-wrap: anywhere; }
+`
+
+// reasonSegmentsTemplate renders a []ReasonSegment. Link segments become anchors that open in
+// a new tab; html/template escapes both the text and the URL.
+const reasonSegmentsTemplate = `{{ define "reason_segments" }}{{ range . }}{{ if .URL }}<a href="{{ .URL }}" target="_blank" rel="noopener noreferrer">{{ .Text }}</a>{{ else }}{{ .Text }}{{ end }}{{ end }}{{ end }}`
+
 // deltaStripTemplate renders the Quality, Tokens and Cost changes of a RunDeltas value.
 // Colors encode direction only; the verdict chip carries statistical significance.
 const deltaStripTemplate = `{{ define "delta_strip" }}<div class="delta-strip">
@@ -877,7 +891,7 @@ const comparisonDetailTemplate = `
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ .Name }} · Comparison · eval-runner</title>
-  <style>` + baseCSS + `</style>
+  <style>` + baseCSS + reasonCSS + `</style>
 </head>
 <body>
   <header class="header-bar">
@@ -909,8 +923,27 @@ const comparisonDetailTemplate = `
 
         <div class="delta-strip-detail">{{ template "delta_strip" .Deltas }}</div>
 
-        {{ if .Message }}
-        <div class="reason-panel"><div class="reason-label">Reason</div><div class="reason-text">{{ .Message }}</div></div>
+        {{ if .Message }}{{ $reason := .ReasonBody }}
+        <div class="reason-panel"><div class="reason-label">Reason</div>{{ if $reason.Headline }}
+          <div class="reason-headline">{{ template "reason_segments" $reason.Headline }}</div>
+          {{- range $reason.Blocks }}
+          <div class="reason-block">
+            {{- range .Parts }}
+            {{- if .Heading }}
+            <div class="reason-block-heading">{{ template "reason_segments" .Heading }}</div>
+            {{- else if .Items }}
+            <ul class="reason-list">
+              {{- range .Items }}
+              <li>{{ template "reason_segments" . }}</li>
+              {{- end }}
+            </ul>
+            {{- else }}
+            <p class="reason-para">{{ range $i, $line := .Lines }}{{ if $i }}<br>{{ end }}{{ template "reason_segments" $line }}{{ end }}</p>
+            {{- end }}
+            {{- end }}
+          </div>
+          {{- end }}
+        {{ else }}<div class="reason-text">{{ template "reason_segments" $reason.Plain }}</div>{{ end }}</div>
         {{ end }}
 
         {{- if .RegressedTasks }}
@@ -1308,7 +1341,7 @@ var (
 	tmplRunDetail        = template.Must(template.New("run_detail").Parse(runDetailTemplate))
 	tmplComparisonsList  = template.Must(template.Must(template.Must(template.New("comparisons_list").Parse(comparisonsListTemplate)).Parse(comparisonCellTemplate)).Parse(deltaStripTemplate))
 	tmplComparisonTable  = template.Must(template.New("comparison_table").Parse(ComparisonTableTemplate))
-	tmplComparisonDetail = template.Must(template.Must(template.Must(template.New("comparison_detail").Parse(ComparisonTableTemplate)).Parse(deltaStripTemplate)).Parse(comparisonDetailTemplate))
+	tmplComparisonDetail = template.Must(template.Must(template.Must(template.Must(template.New("comparison_detail").Parse(ComparisonTableTemplate)).Parse(deltaStripTemplate)).Parse(reasonSegmentsTemplate)).Parse(comparisonDetailTemplate))
 	tmplTaskSamplesList  = template.Must(template.New("task_samples_list").Parse(taskSamplesListTemplate))
 	tmplSampleTranscript = template.Must(template.New("sample_transcript").Parse(sampleTranscriptTemplate))
 	tmplPullsList        = template.Must(template.New("pulls_list").Parse(pullsListTemplate))

@@ -3681,6 +3681,35 @@ func TestServerComparisonsList_CompletedReasonAndDeltas(t *testing.T) {
 	}
 }
 
+func TestServerComparisonsList_StructuredReasonShowsHeadline(t *testing.T) {
+	scheme := newTestScheme(t)
+	comp, baseRun, candRun := regressedComparisonFixture()
+	comp.Labels = nil
+	comp.Status.Message = structuredReasonMessage
+
+	fakeClient := fake.NewClientBuilder().WithScheme(scheme).WithObjects(comp, baseRun, candRun).Build()
+	server := NewServer(Config{Client: fakeClient})
+
+	req := httptest.NewRequest(http.MethodGet, "/comparisons", nil)
+	w := httptest.NewRecorder()
+	server.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", w.Code)
+	}
+	body := w.Body.String()
+
+	headline := "Pass rate fell on 2 of 4 tasks and rose on 1; the largest drop is docs/readme_comprehension, 80% -&gt; 40%."
+	if !strings.Contains(body, `">`+headline+`</div>`) {
+		t.Errorf("expected only the headline in the reason line, got:\n%s", body)
+	}
+	if strings.Contains(body, headline+" Every task") {
+		t.Errorf("did not expect text after the headline in the reason line")
+	}
+	if !strings.Contains(body, `title="Pass rate fell on 2 of 4 tasks`) || !strings.Contains(body, `Code changes: https://github.com/example/repo/compare/a81d0c4...05ce4d8">`+headline) {
+		t.Errorf("expected the full message in the title attribute")
+	}
+}
+
 func groupedServerFixtures(now time.Time) []client.Object {
 	objs := []client.Object{}
 	items, runs := groupingFixtures(now)
@@ -3862,8 +3891,9 @@ func TestServerComparisonDetail_ReasonPanelRegressedTasksAndDeltas(t *testing.T)
 	if strings.Contains(body, `class="msg-alert"`) {
 		t.Errorf("expected no error alert for the status message")
 	}
-	if !strings.Contains(body, `<div class="reason-label">Reason</div><div class="reason-text">Two tasks regressed after the prompt rewrite.`+"\n"+`readme comprehension answers omit the install section in 3 of 5 samples.</div>`) {
-		t.Errorf("expected the full message with its line break in the reason panel")
+	if !strings.Contains(body, `<div class="reason-headline">Two tasks regressed after the prompt rewrite.</div>`) ||
+		!strings.Contains(body, `<p class="reason-para">readme comprehension answers omit the install section in 3 of 5 samples.</p>`) {
+		t.Errorf("expected the message as a headline and a paragraph in the reason panel")
 	}
 	if !strings.Contains(body, `Regressed tasks <span style="font-size:13px;font-weight:500;color:var(--muted)">2 of 4</span>`) {
 		t.Errorf("expected the regressed tasks heading with counts")
